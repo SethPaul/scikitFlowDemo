@@ -9,7 +9,8 @@ Data available at https://www.kaggle.com/c/titanic/data.
 
 ## Topics
 ### - [Transformers](https://github.com/SethPaul/scikitFlowDemo/blob/master/transformers.ipynb)
-### - [Estimators](https://github.com/SethPaul/scikitFlowDemo/blob/master/estimators.ipynb)
-### - [Pipelines](https://github.com/SethPaul/scikitFlowDemo/blob/master/pipelines.ipynb) - to be completed
-### - [Grid Search & Cross Validation](https://github.com/SethPaul/scikitFlowDemo/blob/master/gridSearch.ipynb) - to be completed
+### - [Estimators](https://github.com/SethPaul/scikitFlowDemo/blob/master/estimators.ipynb#estBegin)
+### - [Pipelines](https://github.com/SethPaul/scikitFlowDemo/blob/master/pipelines.ipynb#pipeBegin)
+### - [Grid Search & Cross Validation](https://github.com/SethPaul/scikitFlowDemo/blob/master/gridSearch.ipynb#gridBegin)
+### - [Ensembles](https://github.com/SethPaul/scikitFlowDemo/blob/master/ensembles.ipynb#ensembleBegin)
 ### - [Feature Unions](https://github.com/SethPaul/scikitFlowDemo/blob/master/featureUnions.ipynb) - to be completed

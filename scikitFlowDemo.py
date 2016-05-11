@@ -15,8 +15,8 @@ import re
 # We start by pulling in the datasets and importing our libraries. Data available at https://www.kaggle.com/c/titanic/data.
 
 
-train = pd.read_csv('./titanic/data/train.csv')
-test = pd.read_csv('./titanic/data/test.csv')
+train = pd.read_csv('./data/train.csv')
+test = pd.read_csv('./data/test.csv')
 
 # combining early to apply transformations uniformly
 combinedSet = pd.concat([train , test], axis=0)
@@ -351,7 +351,7 @@ treeClf.fit(X_tree_train, y_tree_train)
 tree_predictions = treeClf.predict(X_tree_test)
 
 print 'Mean Accuracy Score: ', treeClf.score(X_tree_test, y_tree_test)
-print 'Confusion Matrix: \n', \
+print 'Confusion Matrix: \n'
 print pd.DataFrame(confusion_matrix(tree_predictions, y_tree_test))
 
 # Let's create a custom estimator based on the majority survival rate grouped by passenger class, e.g. if most the people in 1st class survived, estimate any test observation from first class survived.
@@ -442,3 +442,184 @@ pClassClfDFonly2= PClassEst2()
 pClassClfDFonly2.fit(train[1:700], train.Survived[1:700])
 
 print pClassClfDFonly.score(train[701:], train.Survived[701:])
+
+# ## Pipelines
+# Pipelines allow for a claen implementation of a dataset -> transform/manipulate -> predict -> score -> iterate model.
+
+X_fit, X_validation, y_fit, y_validation = \
+    cross_validation.train_test_split(train.drop('Survived', axis=1), train.Survived, random_state=13)
+# Starting with a simple example transform gender tags and predict using a decsion tree.
+# First using nested functions:
+
+dummyTransformer=genericLevelsToDummiesTransformer(['Cabin','Sex', 'Pclass','Embarked'], printFlag=False)
+
+dummyTransformer.fit(train)
+dummyTransformer.transform(test).head(3)
+
+def dropColumns(fullColumnDF):
+    reducedColumns = fullColumnDF.drop(['PassengerId', 'Name', "Ticket"], axis=1)
+
+    # fill NA's while we're at it
+    return reducedColumns.fillna(0)
+
+dropColumns(train).head()
+columnDropper = preprocessing.FunctionTransformer(dropColumns, validate=False)
+print columnDropper.transform(train).head()
+
+treeClf = tree.DecisionTreeClassifier(random_state=42)
+withDummies=dummyTransformer.transform(X_fit)
+withDummiesExtraColumnsDropped=columnDropper.transform(withDummies)
+print withDummiesExtraColumnsDropped.head()
+
+treeClf.fit(withDummiesExtraColumnsDropped, y_fit)
+
+withDummiesTest=dummyTransformer.transform(X_validation)
+withDummiesExtraColumnsDroppedTest=columnDropper.transform(withDummiesTest)
+
+print treeClf.predict(withDummiesExtraColumnsDroppedTest)[0:5]
+print treeClf.score(withDummiesExtraColumnsDroppedTest, y_validation)
+# Let's change a few of the parameters from the default and see how it affects the score.
+
+treeClf2 = tree.DecisionTreeClassifier(min_samples_leaf=2, max_features=4, min_samples_split=15, random_state=42)
+treeClf2.fit(withDummiesExtraColumnsDropped, y_fit)
+
+print treeClf2.score(withDummiesExtraColumnsDroppedTest, y_validation)
+
+# Sweeeeet! We just got more accurate. Is this the best we can do? We should try a bunch of values
+
+treeClf3 = tree.DecisionTreeClassifier(min_samples_leaf=5, max_features=10, min_samples_split=10, random_state=42)
+treeClf3.fit(withDummiesExtraColumnsDropped, y_fit)
+
+print treeClf3.score(withDummiesExtraColumnsDroppedTest, y_validation)
+
+# As a pipeline:
+
+from sklearn import pipeline
+
+dummifier = genericLevelsToDummiesTransformer(['Cabin','Sex', 'Pclass','Embarked'], printFlag=False)
+dropifier = preprocessing.FunctionTransformer(dropColumns, validate=False)
+treeClfPipe = tree.DecisionTreeClassifier(random_state=42)
+
+dummyTreePipeline = pipeline.Pipeline([('dummyMaker', dummifier),
+                                        ('columnDropper', dropifier),
+                                        ('treeClassifer', treeClfPipe)])
+
+print dummyTreePipeline
+
+dummyTreePipeline.fit(X_fit, y_fit)
+
+print dummyTreePipeline.predict(X_validation)[1:10]
+print dummyTreePipeline.score(X_validation,y_validation)
+
+# Changing the parameters now in pipeline version.
+dummyTreePipeline.set_params(treeClassifer__min_samples_leaf=5,
+                             treeClassifer__max_features=10,
+                             treeClassifer__min_samples_split=10)
+
+dummyTreePipeline.fit(X_fit, y_fit)
+print dummyTreePipeline.score(X_validation,y_validation)
+
+# Well this is sort of helpful.
+# We've seen better parameters can really improve our model. Can we semi automate it? That would really make this powerful stuff.
+
+# ## Cross Validation
+# So far we have considered three sets:
+#  - fit set to fit the model on (75% of the full train set in the pipeline notebook)
+#  - validation set to test the model on with known labels (25% of the full train set in the pipeline notebook)
+#  - test set to predict our unknown labels
+
+from sklearn import pipeline
+from sklearn import preprocessing
+from sklearn import tree
+from scikitDemoHelpers import genericLevelsToDummiesTransformer
+from scikitDemoHelpers import dropColumns
+
+dummyTransformer=genericLevelsToDummiesTransformer(['Cabin','Sex', 'Pclass','Embarked', 'Title'], printFlag=False)
+dummyTransformer.fit_transform(combinedSet)
+
+dropifier = preprocessing.FunctionTransformer(dropColumns, validate=False)
+treeClfPipe = tree.DecisionTreeClassifier(random_state=42)
+
+dummyTreePipeline = pipeline.Pipeline([('columnDropper', dropifier),
+                                        ('treeClassifer', treeClfPipe)])
+dummyTreePipeline.set_params(treeClassifer__min_samples_leaf=5,
+                             treeClassifer__max_features=10,
+                             treeClassifer__min_samples_split=10)
+
+from sklearn import cross_validation
+X_fit, X_validation, y_fit, y_validation = \
+    cross_validation.train_test_split(train.drop('Survived', axis=1),
+                                      train.Survived, test_size=0.25, random_state=42)
+
+# If we want to consider more than the single train-validation pair, we can cut up the train set into multiple blocks and rotate which one to validate against. This is called K-folds, where K is the number of "folds" we want in the train set.                                      For example with 100 obeservations and k=4:
+#  - fold 1: 1-25
+#  - fold 2: 26-50
+#  - fold 3: 51-75
+#  - fold 4: 76-100
+#
+# We would then crossvalidate 4 times:
+#  - fit on fold 2,3,4; validate with fold 1
+#  - fit on fold 1,3,4; validate with fold 2
+#  - fit on fold 1,2,4; validate with fold 3
+#  - fit on fold 1,2,3; validate with fold 4
+#
+# We would then end up with 4 scores who's average would be better at estimating the model's ability to generalize.
+# A simple example below shows that training and testing our model on different sets even of the same size can produce better or worse scores.
+
+from sklearn import metrics
+from sklearn import cross_validation
+
+scores =  cross_validation.cross_val_score(dummyTreePipeline,
+                                           dummyTransformer.transform(train.drop('Survived',
+                                                      axis=1)),
+                                           train.Survived,
+                                          cv = 5,
+                                          n_jobs=-1)
+print scores
+
+# If we want to create the folds similar to [```sklearn.crossvalidation.train_test_split()```](http://scikit-learn.org/stable/modules/generated/sklearn.cross_validation.train_test_split.html#sklearn.cross_validation.train_test_split) before we can use [```sklearn.crossvalidation.KFold()```](http://scikit-learn.org/stable/modules/generated/sklearn.cross_validation.KFold.html#sklearn.cross_validation.KFold) or [```sklearn.crossvalidation.StratifiedKFold()```](http://scikit-learn.org/stable/modules/generated/sklearn.cross_validation.StratifiedKFold.html#sklearn.cross_validation.StratifiedKFold). Stratified K Folds ensures there is an equal ratio of labels across the folds.
+
+skf = cross_validation.StratifiedKFold(train.Survived, n_folds=5, shuffle=True)
+for fit_indices, validate_indices in skf:
+    dummyTreePipeline.fit(dummyTransformer.transform(train.drop('Survived', axis=1)).loc[fit_indices,:],
+                          train.Survived[fit_indices])
+    print dummyTreePipeline.score(dummyTransformer.transform(train.drop('Survived', axis=1)).loc[validate_indices,:], train.Survived[validate_indices])
+
+# Now that we understand the concept of k-folds let's look at gridsearchCV.
+
+# Grid Search
+# [Grid Search](http://scikit-learn.org/stable/modules/grid_search.html#grid-search) allows for a search across the parameter space for a model. For the decision tree example this could be considering all the parameters output when we create the classifer:
+#          ```
+#          DecisionTreeClassifier(class_weight=None, criterion='gini', max_depth=None,
+#                 max_features=None, max_leaf_nodes=None, min_samples_leaf=1,
+#                 min_samples_split=2, min_weight_fraction_leaf=0.0,
+#                 presort=False, random_state=42, splitter='best')
+#                 ```
+
+print dummyTreePipeline.get_params()
+
+# This search can be over a predefined parameter set.
+paramGrid = [
+    {'treeClassifer__max_features': [1, 5, 12, 25], 'treeClassifer__min_samples_split': [5, 10, 15]}
+]
+from sklearn import grid_search
+dummyGridSearch = grid_search.GridSearchCV(dummyTreePipeline, paramGrid, cv=5)
+dummyGridSearch.fit(dummyTransformer.transform(train.drop('Survived', axis=1)), train.Survived)
+print dummyGridSearch.best_score_
+print dummyGridSearch.grid_scores_
+print dummyGridSearch.best_params_
+print dummyGridSearch.best_estimator_
+
+# Or we can allow it to randomly roam with [```sklearn.grid_search.RandomizedSearchCV```](http://scikit-learn.org/stable/modules/generated/sklearn.grid_search.RandomizedSearchCV.html#sklearn.grid_search.RandomizedSearchCV):
+from scipy.stats import randint as sp_randint
+paramDists = {
+ 'treeClassifer__max_features': sp_randint(1,25),
+ 'treeClassifer__min_samples_split': sp_randint(1, 30),
+}
+
+dummyRandomSearch = grid_search.RandomizedSearchCV(dummyTreePipeline, paramDists, cv=5, n_iter=10, random_state=42)
+dummyRandomSearch.fit(dummyTransformer.transform(train.drop('Survived', axis=1)), train.Survived)
+print dummyRandomSearch.best_score_
+print dummyRandomSearch.grid_scores_
+print dummyRandomSearch.best_params_
+print dummyRandomSearch.best_estimator_

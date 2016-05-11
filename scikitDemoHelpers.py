@@ -117,4 +117,11 @@ class PClassEst2(sk.base.BaseEstimator, sk.base.ClassifierMixin):
         # F1 score : 2 * precision * recall/(precision + recall)
         predictions = self.predict(X)
         # let's use scikit learn's implementation
-        return sk.metrics.f1_score(y, predictions)  
+        return sk.metrics.f1_score(y, predictions)
+
+
+def dropColumns(fullColumnDF):
+    reducedColumns = fullColumnDF.drop(['PassengerId', 'Name', "Ticket"], axis=1)
+
+    # fill NA's while we're at it
+    return reducedColumns.fillna(0)
