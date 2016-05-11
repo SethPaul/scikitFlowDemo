@@ -12,5 +12,5 @@ Data available at https://www.kaggle.com/c/titanic/data.
 ### - [Estimators](./estimators.ipynb#estBegin)
 ### - [Pipelines](./pipelines.ipynb#pipeBegin)
 ### - [Grid Search & Cross Validation](./gridSearch.ipynb#gridBegin)
-### - [Ensembles](./ensembles.ipynb#ensembleBegin)
+### - [Ensembles](./ensembles.ipynb#ensembleBegin) - to be completed
 ### - [Feature Unions](./featureUnions.ipynb) - to be completed
