@@ -92,3 +92,29 @@ class genericLevelsToDummiesTransformer(sk.base.BaseEstimator, sk.base.Classifie
                     newX = newX.drop(dropColumn,1)
             newX = pd.concat([newX.reset_index(drop=True), invColumnDF], axis=1)
         return newX
+
+
+class PClassEst2(sk.base.BaseEstimator, sk.base.ClassifierMixin):
+    def __init__(self):
+        # initialization code
+        self.modelDF=pd.DataFrame()
+
+    def fit(self, train_DF, train_labels):
+        #fit the model to the
+
+        self.modelDF=train_DF.loc[:,['Pclass', 'Survived']]\
+                        .groupby('Pclass')\
+                        .mean()\
+                        .round()
+
+        return self
+
+    def predict(self, test_DF):
+        return self.modelDF.loc[test_DF['Pclass'], 'Survived']
+
+    def score(self, X, y):
+        # custom score implementation
+        # F1 score : 2 * precision * recall/(precision + recall)
+        predictions = self.predict(X)
+        # let's use scikit learn's implementation
+        return sk.metrics.f1_score(y, predictions)  

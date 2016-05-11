@@ -330,3 +330,115 @@ print dummyTransformer.fit_transform(combinedSet).columns
 # We are familiar with estimators like LogisticRegression, NearestNeighbors, and DecisionTreeClassifier.
 #
 # We instantiate an estimator, fit, and predict.
+
+from sklearn import tree
+from sklearn import cross_validation
+from sklearn.metrics import confusion_matrix
+
+print combinedSet.loc[1:10,['Pclass', 'Age', 'Fare', 'Survived']]
+
+X_tree = combinedSet.loc[:,['Age', 'Fare']]\
+        .fillna(0)
+y_tree = combinedSet['Survived']\
+        .fillna(0)
+
+X_tree_train, X_tree_test, y_tree_train, y_tree_test = \
+    cross_validation.train_test_split(X_tree, y_tree, random_state=13)
+
+treeClf= tree.DecisionTreeClassifier()
+treeClf.fit(X_tree_train, y_tree_train)
+
+tree_predictions = treeClf.predict(X_tree_test)
+
+print 'Mean Accuracy Score: ', treeClf.score(X_tree_test, y_tree_test)
+print 'Confusion Matrix: \n', \
+print pd.DataFrame(confusion_matrix(tree_predictions, y_tree_test))
+
+# Let's create a custom estimator based on the majority survival rate grouped by passenger class, e.g. if most the people in 1st class survived, estimate any test observation from first class survived.
+
+# You will want to include the fit, predict, and score methods:
+# ``` python
+# class Estimator(base.BaseEstimator, base.ClassifierMixin):
+#   def __init__(self, ...):
+#   # initialization code
+#
+#   def fit(self, X, y):
+#   # fit the model ...
+#     return self
+#
+#   def predict(self, X):
+#     return # prediction
+#
+#   def score(self, X, y):
+#     return # custom score implementation
+# ```
+### Example to show customization of inputs compared to base estimators:
+
+class PClassEstDFonly(sk.base.BaseEstimator, sk.base.ClassifierMixin):
+    def __init__(self):
+        # initialization code
+        self.modelDF=pd.DataFrame()
+
+    def fit(self, train_DF):
+        #fit the model to the majority vote
+        self.modelDF=train_DF.loc[:,['Pclass', 'Survived']]\
+                        .groupby('Pclass')\
+                        .mean()\
+                        .round()\
+                        .astype(int)
+        return self
+
+    def predict(self, test_DF):
+        return self.modelDF.loc[test_DF['Pclass'], 'Survived'].values
+
+    def score(self, X, y):
+        # custom score implementation
+        #F1 score : 2 * precision * recall/(precision + recall)
+        predictions = self.predict(X)
+
+        # true positives
+        tp = sum(predictions * y) * 1.0
+        # false positives
+        fp = sum((1-predictions) * y) * 1.0
+        # false negatives
+        fn = sum(predictions * (1-y)) * 1.0
+
+        precision =  tp / (tp + fp)
+        recall = tp / (tp + fn)
+        return 2 * precision * recall/(precision + recall)
+
+pClassClfDFonly= PClassEstDFonly()
+pClassClfDFonly.fit(train[1:700])
+
+print pClassClfDFonly.score(train[701:], train.Survived[701:])
+
+### Example to follow fit(X, y), predict(X) pattern:
+class PClassEst2(sk.base.BaseEstimator, sk.base.ClassifierMixin):
+    def __init__(self):
+        # initialization code
+        self.modelDF=pd.DataFrame()
+
+    def fit(self, train_DF, train_labels):
+        #fit the model to the
+
+        self.modelDF=train_DF.loc[:,['Pclass', 'Survived']]\
+                        .groupby('Pclass')\
+                        .mean()\
+                        .round()
+
+        return self
+
+    def predict(self, test_DF):
+        return self.modelDF.loc[test_DF['Pclass'], 'Survived']
+
+    def score(self, X, y):
+        # custom score implementation
+        # F1 score : 2 * precision * recall/(precision + recall)
+        predictions = self.predict(X)
+        # let's use scikit learn's implementation
+        return sk.metrics.f1_score(y, predictions)
+
+pClassClfDFonly2= PClassEst2()
+pClassClfDFonly2.fit(train[1:700], train.Survived[1:700])
+
+print pClassClfDFonly.score(train[701:], train.Survived[701:])
